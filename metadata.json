@@ -1,0 +1,6 @@
+{
+  "name": "Eventra — Festival Management Platform",
+  "description": "Complete digital festival and event management platform. Real-time schedules, multi-criteria judging, published results, registrations, and certificates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
