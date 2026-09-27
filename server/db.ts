@@ -1,6 +1,89 @@
 import { neon } from "@neondatabase/serverless";
 
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  owner_user_id: string;
+  logo_url: string;
+  website: string;
+  billing_email: string;
+  status: "active" | "inactive" | "suspended";
+  created_at: string;
+}
+
+export interface OrganizationMember {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  user_name?: string;
+  user_email?: string;
+  role: "owner" | "admin" | "coordinator" | "judge" | "team-mgr" | "member";
+  status: "active" | "invited" | "deactivated";
+  created_at: string;
+}
+
+export interface OrganizationInvitation {
+  id: string;
+  organization_id: string;
+  email: string;
+  role: string;
+  token: string;
+  invited_by: string;
+  status: "pending" | "accepted" | "revoked";
+  expires_at: string;
+  created_at: string;
+}
+
+export interface SubscriptionPlan {
+  code: string;
+  name: string;
+  description: string;
+  price_monthly: number;
+  price_per_event: number;
+  max_events: number;
+  max_participants: number;
+  max_programmes: number;
+  max_judges: number;
+  features: Record<string, boolean>;
+}
+
+export interface OrganizationSubscription {
+  id: string;
+  organization_id: string;
+  plan_code: string;
+  status: "trialing" | "active" | "past_due" | "canceled" | "expired";
+  trial_ends_at: string | null;
+  current_period_ends_at: string;
+  payment_provider: string;
+  payment_customer_id?: string;
+  created_at: string;
+}
+
+export interface UserVerificationToken {
+  id: string;
+  user_id: string;
+  token: string;
+  expires_at: string;
+  verified_at: string | null;
+}
+
+export interface PasswordResetToken {
+  id: string;
+  user_id: string;
+  token: string;
+  expires_at: string;
+  used_at: string | null;
+}
+
 export interface EventraDbState {
+  organizations: Organization[];
+  organizationMembers: OrganizationMember[];
+  organizationInvitations: OrganizationInvitation[];
+  subscriptionPlans: SubscriptionPlan[];
+  organizationSubscriptions: OrganizationSubscription[];
+  userVerifications: UserVerificationToken[];
+  passwordResets: PasswordResetToken[];
   events: any[];
   venues: any[];
   teams: any[];
@@ -30,15 +113,23 @@ export interface EventraDbState {
   eventraRateLimits: any[];
 }
 
-// Generate realistic seeded state for immediate production responsiveness
 function createInitialSeedData(): EventraDbState {
-  const event1Id = "e1000000-0000-0000-0000-000000000001";
-  const event2Id = "e2000000-0000-0000-0000-000000000002";
+  // Organizations
+  const org1Id = "org-1000-0000-0000-000000000001"; // Faris / Platform HQ
+  const org2Id = "org-2000-0000-0000-000000000002"; // St. Xavier's Arts Council (College A)
+  const org3Id = "org-3000-0000-0000-000000000003"; // National Institute of Tech (College B)
 
-  const adminUserId = "u1000000-0000-0000-0000-000000000001";
-  const coordUserId = "u2000000-0000-0000-0000-000000000002";
+  // Users
+  const farisUserId = "u1000000-0000-0000-0000-000000000001"; // Super Admin
+  const collegeAOwnerId = "u2000000-0000-0000-0000-000000000002"; // Organizer College A
+  const collegeBOwnerId = "u5000000-0000-0000-0000-000000000005"; // Organizer College B
   const judge1UserId = "u3000000-0000-0000-0000-000000000003";
   const judge2UserId = "u4000000-0000-0000-0000-000000000004";
+  const participantUserId = "u6000000-0000-0000-0000-000000000006";
+
+  // Events
+  const event1Id = "e1000000-0000-0000-0000-000000000001"; // Verve '26 (belongs to Org 2 - College A)
+  const event2Id = "e2000000-0000-0000-0000-000000000002"; // TechFest Arena 2026 (belongs to Org 3 - College B)
 
   const v1 = "v1000000-0000-0000-0000-000000000001";
   const v2 = "v2000000-0000-0000-0000-000000000002";
@@ -49,9 +140,9 @@ function createInitialSeedData(): EventraDbState {
   const t3 = "t3000000-0000-0000-0000-000000000003";
 
   const p1 = "p1000000-0000-0000-0000-000000000001"; // Folk Dance
-  const p2 = "p2000000-0000-0000-0000-000000000002"; // Acoustic Unplugged
+  const p2 = "p2000000-0000-0000-0000-000000000002"; // Acoustic Solo
   const p3 = "p3000000-0000-0000-0000-000000000003"; // Classical Vocal
-  const p4 = "p4000000-0000-0000-0000-000000000004"; // Street Art Battle
+  const p4 = "p4000000-0000-0000-0000-000000000004"; // Street Art
 
   const part1 = "pt100000-0000-0000-0000-000000000001";
   const part2 = "pt200000-0000-0000-0000-000000000002";
@@ -63,9 +154,199 @@ function createInitialSeedData(): EventraDbState {
   const crit3 = "c3000000-0000-0000-0000-000000000003";
 
   return {
+    organizations: [
+      {
+        id: org1Id,
+        name: "Eventra Global Operations",
+        slug: "eventra-hq",
+        owner_user_id: farisUserId,
+        logo_url: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=160&auto=format&fit=crop&q=80",
+        website: "https://eventra-ruddy.vercel.app",
+        billing_email: "billing@eventra.local",
+        status: "active",
+        created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
+      },
+      {
+        id: org2Id,
+        name: "St. Xavier's Cultural Council",
+        slug: "st-xaviers",
+        owner_user_id: collegeAOwnerId,
+        logo_url: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=160&auto=format&fit=crop&q=80",
+        website: "https://xaviers.edu/cultural",
+        billing_email: "accounts@xaviers.edu",
+        status: "active",
+        created_at: new Date(Date.now() - 86400000 * 14).toISOString(),
+      },
+      {
+        id: org3Id,
+        name: "National Tech Arena League",
+        slug: "tech-league",
+        owner_user_id: collegeBOwnerId,
+        logo_url: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=160&auto=format&fit=crop&q=80",
+        website: "https://techleague.org",
+        billing_email: "finance@techleague.org",
+        status: "active",
+        created_at: new Date(Date.now() - 86400000 * 8).toISOString(),
+      },
+    ],
+    organizationMembers: [
+      {
+        id: "om-1",
+        organization_id: org1Id,
+        user_id: farisUserId,
+        role: "owner",
+        status: "active",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "om-2",
+        organization_id: org2Id,
+        user_id: collegeAOwnerId,
+        role: "owner",
+        status: "active",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "om-3",
+        organization_id: org2Id,
+        user_id: judge1UserId,
+        role: "judge",
+        status: "active",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "om-4",
+        organization_id: org2Id,
+        user_id: judge2UserId,
+        role: "judge",
+        status: "active",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "om-5",
+        organization_id: org3Id,
+        user_id: collegeBOwnerId,
+        role: "owner",
+        status: "active",
+        created_at: new Date().toISOString(),
+      },
+    ],
+    organizationInvitations: [
+      {
+        id: "inv-1",
+        organization_id: org2Id,
+        email: "stage.manager@xaviers.edu",
+        role: "coordinator",
+        token: "INV-XAV-991",
+        invited_by: collegeAOwnerId,
+        status: "pending",
+        expires_at: new Date(Date.now() + 86400000 * 7).toISOString(),
+        created_at: new Date().toISOString(),
+      },
+    ],
+    subscriptionPlans: [
+      {
+        code: "trial",
+        name: "14-Day Free Trial",
+        description: "Essential festival operating features for new organizers",
+        price_monthly: 0,
+        price_per_event: 0,
+        max_events: 1,
+        max_participants: 100,
+        max_programmes: 10,
+        max_judges: 5,
+        features: { custom_domain: false, certificates: true, qr_verification: true, leaderboard: true },
+      },
+      {
+        code: "campus",
+        name: "Campus Festival Plan",
+        description: "Designed for collegiate arts, music, and campus tournaments",
+        price_monthly: 49,
+        price_per_event: 49,
+        max_events: 3,
+        max_participants: 600,
+        max_programmes: 35,
+        max_judges: 15,
+        features: { custom_domain: false, certificates: true, qr_verification: true, leaderboard: true, multiple_venues: true },
+      },
+      {
+        code: "pro",
+        name: "Pro Tournament & Gala",
+        description: "For multi-university championships and high-capacity festivals",
+        price_monthly: 149,
+        price_per_event: 149,
+        max_events: 10,
+        max_participants: 3000,
+        max_programmes: 120,
+        max_judges: 60,
+        features: { custom_domain: true, certificates: true, qr_verification: true, leaderboard: true, priority_support: true, custom_branding: true },
+      },
+      {
+        code: "enterprise",
+        name: "National Federation",
+        description: "Unlimited scale, dedicated hosting, SLA, and enterprise onboarding",
+        price_monthly: 399,
+        price_per_event: 399,
+        max_events: 999,
+        max_participants: 50000,
+        max_programmes: 999,
+        max_judges: 999,
+        features: { custom_domain: true, certificates: true, qr_verification: true, leaderboard: true, priority_support: true, dedicated_instance: true },
+      },
+    ],
+    organizationSubscriptions: [
+      {
+        id: "sub-1",
+        organization_id: org1Id,
+        plan_code: "enterprise",
+        status: "active",
+        trial_ends_at: null,
+        current_period_ends_at: new Date(Date.now() + 86400000 * 365).toISOString(),
+        payment_provider: "internal_master",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "sub-2",
+        organization_id: org2Id,
+        plan_code: "pro",
+        status: "active",
+        trial_ends_at: null,
+        current_period_ends_at: new Date(Date.now() + 86400000 * 45).toISOString(),
+        payment_provider: "pending_gateway",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "sub-3",
+        organization_id: org3Id,
+        plan_code: "trial",
+        status: "trialing",
+        trial_ends_at: new Date(Date.now() + 86400000 * 12).toISOString(),
+        current_period_ends_at: new Date(Date.now() + 86400000 * 12).toISOString(),
+        payment_provider: "pending_gateway",
+        created_at: new Date().toISOString(),
+      },
+    ],
+    userVerifications: [
+      {
+        id: "uv-1",
+        user_id: farisUserId,
+        token: "tok-faris-verified",
+        expires_at: new Date(Date.now() + 86400000).toISOString(),
+        verified_at: new Date().toISOString(),
+      },
+      {
+        id: "uv-2",
+        user_id: collegeAOwnerId,
+        token: "tok-xavier-verified",
+        expires_at: new Date(Date.now() + 86400000).toISOString(),
+        verified_at: new Date().toISOString(),
+      },
+    ],
+    passwordResets: [],
     events: [
       {
         id: event1Id,
+        organization_id: org2Id, // St. Xavier's Cultural Council
         name: "Verve '26",
         slug: "verve-26",
         description: "The flagship inter-collegiate festival celebrating music, dance, theatrical arts, and creative expressions.",
@@ -97,6 +378,7 @@ function createInitialSeedData(): EventraDbState {
       },
       {
         id: event2Id,
+        organization_id: org3Id, // National Tech Arena League
         name: "TechFest Arena 2026",
         slug: "tech-arena-26",
         description: "Autonomous robotics, high-octane 24hr hackathon, and design sprint battleground.",
@@ -472,37 +754,49 @@ function createInitialSeedData(): EventraDbState {
         action: "result.published",
         entity_type: "result",
         entity_id: "res-1",
-        actor_user_id: adminUserId,
+        actor_user_id: farisUserId,
         changes: { position: 1, total_score: 95, points: 5 },
         created_at: new Date().toISOString(),
       },
     ],
     users: [
       {
-        id: adminUserId,
+        id: farisUserId,
         email: "owner@eventra.local",
-        display_name: "Eventra Super Admin",
-        // Default password: Eventra2026!
+        display_name: "Faris (Platform Owner)",
         password_hash: "scrypt$6dK7c...$bootstrap",
         active: true,
+        email_verified: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
       {
-        id: coordUserId,
-        email: "coordinator@verve.org",
-        display_name: "Festival Coordinator",
+        id: collegeAOwnerId,
+        email: "coordinator@xaviers.edu",
+        display_name: "Fr. Thomas (Xavier's Dean)",
         password_hash: "scrypt$6dK7c...$bootstrap",
         active: true,
+        email_verified: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: collegeBOwnerId,
+        email: "dean@techleague.org",
+        display_name: "Dr. Arvind Rao (Tech League)",
+        password_hash: "scrypt$6dK7c...$bootstrap",
+        active: true,
+        email_verified: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
       {
         id: judge1UserId,
         email: "judge.priya@eventra.org",
-        display_name: "Dr. Priya Menon (Senior Judge)",
+        display_name: "Dr. Priya Menon (Senior Juror)",
         password_hash: "scrypt$6dK7c...$bootstrap",
         active: true,
+        email_verified: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
@@ -512,26 +806,41 @@ function createInitialSeedData(): EventraDbState {
         display_name: "Marcus Vance (Dance Juror)",
         password_hash: "scrypt$6dK7c...$bootstrap",
         active: true,
+        email_verified: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: participantUserId,
+        email: "aarav.s@campus.edu",
+        display_name: "Aarav Sharma (Contestant)",
+        password_hash: "scrypt$6dK7c...$bootstrap",
+        active: true,
+        email_verified: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
     ],
     roles: [
-      { id: "r-admin", name: "admin", description: "Full system administration" },
-      { id: "r-organizer", name: "organizer", description: "Owns and manages festivals" },
-      { id: "r-coordinator", name: "coordinator", description: "Coordinates schedules and reviews marks" },
-      { id: "r-judge", name: "judge", description: "Scores assigned programmes" },
-      { id: "r-participant", name: "participant", description: "Participant view and self service" },
+      { id: "r-admin", name: "super_admin", description: "Platform Owner - Faris" },
+      { id: "r-org-owner", name: "org_owner", description: "Organization Owner" },
+      { id: "r-org-admin", name: "org_admin", description: "Organization Admin" },
+      { id: "r-coordinator", name: "coordinator", description: "Festival Coordinator" },
+      { id: "r-judge", name: "judge", description: "Jury / Judge" },
+      { id: "r-team-mgr", name: "team_mgr", description: "Team Manager" },
+      { id: "r-participant", name: "participant", description: "Participant" },
     ],
     userRoles: [
-      { user_id: adminUserId, role_id: "r-admin" },
-      { user_id: coordUserId, role_id: "r-coordinator" },
+      { user_id: farisUserId, role_id: "r-admin" },
+      { user_id: collegeAOwnerId, role_id: "r-org-owner" },
+      { user_id: collegeBOwnerId, role_id: "r-org-owner" },
       { user_id: judge1UserId, role_id: "r-judge" },
       { user_id: judge2UserId, role_id: "r-judge" },
+      { user_id: participantUserId, role_id: "r-participant" },
     ],
     eventRoles: [
       { id: "er-1", event_id: event1Id, email: "owner@eventra.local", role: "admin", active: true },
-      { id: "er-2", event_id: event1Id, email: "coordinator@verve.org", role: "organizer", active: true },
+      { id: "er-2", event_id: event1Id, email: "coordinator@xaviers.edu", role: "organizer", active: true },
       { id: "er-3", event_id: event1Id, email: "judge.priya@eventra.org", role: "judge", active: true },
       { id: "er-4", event_id: event1Id, email: "judge.marcus@eventra.org", role: "judge", active: true },
     ],
@@ -540,10 +849,8 @@ function createInitialSeedData(): EventraDbState {
   };
 }
 
-// In-memory single source of truth for runtime when DATABASE_URL is not provided or offline
 export const db: EventraDbState = createInitialSeedData();
 
-// Helper to determine if remote Neon Postgres is available
 export function getNeonSql() {
   if (!process.env.DATABASE_URL) return null;
   try {

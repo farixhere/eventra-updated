@@ -119,6 +119,18 @@ export default function App() {
     setUser(null);
   };
 
+  const handleSwitchOrg = async (orgId: string) => {
+    try {
+      const res = await api.switchOrg(orgId);
+      if (res.ok && res.user) {
+        setUser(res.user);
+        await refreshEvents();
+      }
+    } catch (err) {
+      console.error("Failed to switch organization:", err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0b0d11] text-neutral-100 flex flex-col font-sans selection:bg-[#d7ff3f] selection:text-black">
       <Navbar
@@ -135,6 +147,7 @@ export default function App() {
         onLogout={handleLogout}
         onOpenVerify={() => setVerifyModalOpen(true)}
         onOpenSearch={() => setSearchModalOpen(true)}
+        onSwitchOrg={handleSwitchOrg}
       />
 
       <div className="flex-1">

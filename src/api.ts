@@ -19,6 +19,12 @@ import {
   AuditLogItem,
   LeaderboardItem,
   UserSessionItem,
+  SubscriptionPlanItem,
+  OrganizationSubscriptionItem,
+  TenantUsageItem,
+  OrganizationItem,
+  OrganizationMemberItem,
+  OrganizationInvitationItem,
 } from "./types";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -43,15 +49,57 @@ export const api = {
   // Health
   getHealth: () => request<{ ok: boolean; database: string; database_time: string; events: number; programmes: number; results: number; users: number; schema: any }>("/api/health"),
 
-  // Auth
+  // Auth & Onboarding
   getAuthStatus: () => request<{ ok: boolean; auth: { configured: boolean; configuredEmail: string; users: number } }>("/api/auth/status"),
   login: (email: string, password?: string) =>
     request<{ ok: boolean; user: UserSessionItem }>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password: password || "Eventra2026!" }),
     }),
+  signup: (data: {
+    name: string;
+    email: string;
+    password?: string;
+    organizationName?: string;
+    planCode?: string;
+    festivalName?: string;
+    festivalLocation?: string;
+    festivalStartDate?: string;
+    festivalDescription?: string;
+    inviteToken?: string;
+    teamInvites?: Array<{ email: string; role: string }>;
+  }) =>
+    request<{ ok: boolean; user: UserSessionItem; message: string }>("/api/auth/signup", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   getMe: () => request<{ ok: boolean; user: UserSessionItem }>("/api/auth/me"),
+  switchOrg: (orgId: string) =>
+    request<{ ok: boolean; user: UserSessionItem }>("/api/auth/switch-org", {
+      method: "POST",
+      body: JSON.stringify({ orgId }),
+    }),
+  verifyEmail: (token: string) =>
+    request<{ ok: boolean; message: string }>("/api/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
+  forgotPassword: (email: string) =>
+    request<{ ok: boolean; message: string; resetToken?: string }>("/api/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (token: string, newPassword: string) =>
+    request<{ ok: boolean; message: string }>("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, newPassword }),
+    }),
+  updateProfile: (data: { name?: string; currentPassword?: string; newPassword?: string }) =>
+    request<{ ok: boolean; user: UserSessionItem; message: string }>("/api/auth/profile", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
   getAccounts: () => request<{ users: any[] }>("/api/auth/accounts"),
   getEventRoles: (eventId: string) => request<{ roles: any[] }>(`/api/auth/event-roles?eventId=${eventId}`),
   assignEventRole: (eventId: string, email: string, role: string) =>
@@ -59,6 +107,39 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ eventId, email, role }),
     }),
+
+  // Organizations & Subscriptions
+  getPlans: () => request<{ plans: SubscriptionPlanItem[] }>("/api/plans"),
+  getOrgSubscription: (orgId: string) =>
+    request<{
+      subscription: OrganizationSubscriptionItem;
+      plan: SubscriptionPlanItem;
+      usage: TenantUsageItem;
+      paymentGatewayStatus: string;
+    }>(`/api/organizations/${orgId}/subscription`),
+  updateOrgSubscription: (orgId: string, planCode: string) =>
+    request<{ ok: boolean; subscription: OrganizationSubscriptionItem; message: string }>(
+      `/api/organizations/${orgId}/subscription`,
+      { method: "POST", body: JSON.stringify({ planCode }) }
+    ),
+  getAdminSubscriptions: () =>
+    request<{ organizations: (OrganizationItem & { subscription: any; plan: any; usage: TenantUsageItem })[] }>(
+      "/api/admin/subscriptions"
+    ),
+  getOrganizations: () => request<{ organizations: OrganizationItem[] }>("/api/organizations"),
+  createOrganization: (data: { name: string; website?: string; billingEmail?: string }) =>
+    request<{ organization: OrganizationItem }>("/api/organizations", { method: "POST", body: JSON.stringify(data) }),
+  getOrgMembers: (orgId: string) =>
+    request<{ members: OrganizationMemberItem[]; invitations: OrganizationInvitationItem[] }>(
+      `/api/organizations/${orgId}/members`
+    ),
+  inviteOrgMember: (orgId: string, email: string, role: string) =>
+    request<{ ok: boolean; invitation: OrganizationInvitationItem; inviteLink: string }>(
+      `/api/organizations/${orgId}/invitations`,
+      { method: "POST", body: JSON.stringify({ email, role }) }
+    ),
+  removeOrgMember: (orgId: string, userId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/members/${userId}`, { method: "DELETE" }),
 
   // Events
   getEvents: (isPublic = false) => request<{ events: EventItem[] }>(`/api/events${isPublic ? "?public=true" : ""}`),

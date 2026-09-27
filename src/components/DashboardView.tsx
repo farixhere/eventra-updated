@@ -26,6 +26,9 @@ import {
   FileText,
   Sliders,
   CheckSquare,
+  CreditCard,
+  Building,
+  Sparkles,
 } from "lucide-react";
 import {
   EventItem,
@@ -46,6 +49,9 @@ import {
   MediaAssetItem,
   AuditLogItem,
   UserSessionItem,
+  SubscriptionPlanItem,
+  OrganizationSubscriptionItem,
+  TenantUsageItem,
 } from "../types";
 import { api } from "../api";
 
@@ -85,6 +91,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [healthStatus, setHealthStatus] = useState<any>(null);
+
+  // Subscriptions & Multi-Tenant Architecture
+  const [subscription, setSubscription] = useState<OrganizationSubscriptionItem | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<SubscriptionPlanItem | null>(null);
+  const [tenantUsage, setTenantUsage] = useState<TenantUsageItem | null>(null);
+  const [plans, setPlans] = useState<SubscriptionPlanItem[]>([]);
+  const [adminOrgList, setAdminOrgList] = useState<any[]>([]);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -201,10 +215,48 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       if (pr.programmes?.length > 0 && !selectedScoreProg) {
         setSelectedScoreProg(pr.programmes[0].id);
       }
+
+      await loadSubscriptionData();
     } catch (err: any) {
       console.error("Failed to load event data:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSubscriptionData = async () => {
+    try {
+      const activeOrgId = user?.activeOrgId || selectedEvent?.organization_id;
+      if (activeOrgId) {
+        const subRes = await api.getOrgSubscription(activeOrgId);
+        setSubscription(subRes.subscription);
+        setCurrentPlan(subRes.plan);
+        setTenantUsage(subRes.usage);
+      }
+      const plansRes = await api.getPlans();
+      setPlans(plansRes.plans || []);
+
+      if (user?.isSuperAdmin) {
+        const adminRes = await api.getAdminSubscriptions();
+        setAdminOrgList(adminRes.organizations || []);
+      }
+    } catch (err) {
+      console.warn("Could not load subscription details:", err);
+    }
+  };
+
+  const handleUpgradePlan = async (planCode: string) => {
+    const orgId = user?.activeOrgId || selectedEvent?.organization_id;
+    if (!orgId) return;
+    setSubscriptionLoading(true);
+    try {
+      const res = await api.updateOrgSubscription(orgId, planCode);
+      setActionSuccess(res.message);
+      await loadSubscriptionData();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to update subscription");
+    } finally {
+      setSubscriptionLoading(false);
     }
   };
 
@@ -612,6 +664,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               { id: "certificates", label: "Certificates & IDs", icon: Award },
               { id: "broadcast", label: "Notices & Broadcast", icon: Radio },
               { id: "access", label: "Roles & Judge Assign", icon: Shield },
+              { id: "subscriptions", label: "Subscriptions & Quotas", icon: CreditCard },
               { id: "audit", label: "Audit Trails", icon: FileText },
               { id: "diagnostics", label: "System Health", icon: AlertCircle },
             ].map((tab) => (
@@ -727,6 +780,131 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {results.filter((r) => r.published).length}
                 </strong>
                 <span className="text-[11px] text-neutral-400">Live on public wall</span>
+              </div>
+            </div>
+
+            {/* Organization Subscription & Quotas Widget */}
+            <div className="p-5 rounded-2xl bg-gradient-to-r from-neutral-900 to-[#12161f] border border-white/10 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#d7ff3f]/10 text-[#d7ff3f] flex items-center justify-center">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-white">
+                        {currentPlan?.name || "14-Day Free Trial Workspace"}
+                      </h3>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider ${
+                          subscription?.status === "active"
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                            : subscription?.status === "trialing"
+                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                            : "bg-white/10 text-neutral-300"
+                        }`}
+                      >
+                        {subscription?.status || "trialing"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      {subscription?.trial_ends_at
+                        ? `Trial active — renewal review on ${new Date(subscription.trial_ends_at).toLocaleDateString()}`
+                        : `SaaS plan active — payment gateway pending integration`}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSection("subscriptions")}
+                  className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white border border-white/10 flex items-center gap-1.5 transition-colors cursor-pointer self-start sm:self-auto"
+                >
+                  <span>Manage Quotas & Tiers</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-[#d7ff3f]" />
+                </button>
+              </div>
+
+              {/* Quota Progress Gauges */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-white/5">
+                <div>
+                  <div className="flex justify-between text-[11px] mb-1">
+                    <span className="text-neutral-400">Festival Events</span>
+                    <span className="text-white font-semibold">
+                      {tenantUsage?.eventsCount || 0} / {tenantUsage?.eventsMax || 1}
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-[#d7ff3f] h-1.5 rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          ((tenantUsage?.eventsCount || 0) / (tenantUsage?.eventsMax || 1)) * 100
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-[11px] mb-1">
+                    <span className="text-neutral-400">Programmes</span>
+                    <span className="text-white font-semibold">
+                      {tenantUsage?.programmesCount || 0} / {tenantUsage?.programmesMax || 10}
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-sky-400 h-1.5 rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          ((tenantUsage?.programmesCount || 0) / (tenantUsage?.programmesMax || 10)) * 100
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-[11px] mb-1">
+                    <span className="text-neutral-400">Contestants</span>
+                    <span className="text-white font-semibold">
+                      {tenantUsage?.participantsCount || 0} / {tenantUsage?.participantsMax || 100}
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-purple-400 h-1.5 rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          ((tenantUsage?.participantsCount || 0) / (tenantUsage?.participantsMax || 100)) * 100
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-[11px] mb-1">
+                    <span className="text-neutral-400">Judges</span>
+                    <span className="text-white font-semibold">
+                      {tenantUsage?.judgesCount || 0} / {tenantUsage?.judgesMax || 5}
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-emerald-400 h-1.5 rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          ((tenantUsage?.judgesCount || 0) / (tenantUsage?.judgesMax || 5)) * 100
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1558,6 +1736,349 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* SECTION: SUBSCRIPTIONS & QUOTAS */}
+        {section === "subscriptions" && (
+          <div className="space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold text-[#d7ff3f] uppercase tracking-wider block">
+                  MULTI-TENANT ARCHITECTURE
+                </span>
+                <h2 className="text-2xl font-black text-white">Subscription & Tenant Quotas</h2>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Manage organization workspace plans, resource limits, and billing status
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Payment Gateway: Pending Integration</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Current Organization Workspace Card */}
+            <div className="p-6 rounded-2xl bg-neutral-900 border border-white/10 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[#d7ff3f]/10 text-[#d7ff3f] flex items-center justify-center text-xl font-black">
+                    <Building className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>{user?.organizations?.find((o) => o.orgId === user.activeOrgId)?.orgName || selectedEvent.name}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider ${
+                          subscription?.status === "active"
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                            : subscription?.status === "trialing"
+                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                            : "bg-white/10 text-neutral-300"
+                        }`}
+                      >
+                        {subscription?.status || "trialing"}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      Workspace ID: <span className="font-mono text-neutral-300">{user?.activeOrgId || selectedEvent.organization_id || "org-workspace"}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-left sm:text-right">
+                  <span className="text-xs font-bold text-white block">
+                    Current Tier: <span className="text-[#d7ff3f] uppercase">{currentPlan?.name || "Trial"}</span>
+                  </span>
+                  <span className="text-[11px] text-neutral-400 block mt-0.5">
+                    {subscription?.trial_ends_at
+                      ? `Trial expires: ${new Date(subscription.trial_ends_at).toLocaleDateString()}`
+                      : `Cycle ends: ${subscription?.current_period_ends_at ? new Date(subscription.current_period_ends_at).toLocaleDateString() : "Next month"}`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Real Usage vs Plan Quotas */}
+              <div>
+                <h4 className="text-xs font-bold text-neutral-300 uppercase tracking-wider mb-3">
+                  Resource Usage & Plan Enforcements
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-400">Festival Events</span>
+                      <span className="font-bold text-white">
+                        {tenantUsage?.eventsCount || 0} / {tenantUsage?.eventsMax || 1}
+                      </span>
+                    </div>
+                    <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-[#d7ff3f] h-2 rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            ((tenantUsage?.eventsCount || 0) / (tenantUsage?.eventsMax || 1)) * 100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-neutral-500 block">
+                      Max {tenantUsage?.eventsMax || 1} concurrent festivals
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-400">Programmes Lineup</span>
+                      <span className="font-bold text-white">
+                        {tenantUsage?.programmesCount || 0} / {tenantUsage?.programmesMax || 10}
+                      </span>
+                    </div>
+                    <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-sky-400 h-2 rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            ((tenantUsage?.programmesCount || 0) / (tenantUsage?.programmesMax || 10)) * 100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-neutral-500 block">
+                      Max {tenantUsage?.programmesMax || 10} event categories
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-400">Contestants / Chests</span>
+                      <span className="font-bold text-white">
+                        {tenantUsage?.participantsCount || 0} / {tenantUsage?.participantsMax || 100}
+                      </span>
+                    </div>
+                    <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-purple-400 h-2 rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            ((tenantUsage?.participantsCount || 0) / (tenantUsage?.participantsMax || 100)) * 100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-neutral-500 block">
+                      Max {tenantUsage?.participantsMax || 100} registered participants
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-400">Jurors & Judges</span>
+                      <span className="font-bold text-white">
+                        {tenantUsage?.judgesCount || 0} / {tenantUsage?.judgesMax || 5}
+                      </span>
+                    </div>
+                    <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-emerald-400 h-2 rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            ((tenantUsage?.judgesCount || 0) / (tenantUsage?.judgesMax || 5)) * 100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-neutral-500 block">
+                      Max {tenantUsage?.judgesMax || 5} judge scoring accounts
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Plan Tiers Selection */}
+            <div>
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-white">Available SaaS Subscription Tiers</h3>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Select a plan to test tier changes. Customer data is never deleted upon plan expiration or downgrade.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {plans.map((p) => {
+                  const isCurrent = currentPlan?.code === p.code;
+                  return (
+                    <div
+                      key={p.code}
+                      className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
+                        isCurrent
+                          ? "bg-[#d7ff3f]/10 border-[#d7ff3f] shadow-[0_0_20px_rgba(215,255,63,0.15)]"
+                          : "bg-neutral-900 border-white/10 hover:border-white/20"
+                      }`}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white uppercase tracking-wider">{p.name}</span>
+                          {isCurrent && (
+                            <span className="px-2 py-0.5 rounded bg-[#d7ff3f] text-black font-extrabold text-[9px] uppercase">
+                              Active
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-2xl font-black text-white">
+                              {p.price_monthly === 0 ? "Free" : `$${p.price_monthly}`}
+                            </span>
+                            <span className="text-xs text-neutral-400">
+                              {p.price_monthly === 0 ? "14 days" : "/month"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-neutral-400 mt-1 leading-snug">{p.description}</p>
+                        </div>
+
+                        <div className="space-y-1.5 pt-3 border-t border-white/10 text-xs text-neutral-300">
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5 text-[#d7ff3f]" />
+                            <span>{p.max_events >= 99 ? "Unlimited" : p.max_events} Festival(s)</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5 text-[#d7ff3f]" />
+                            <span>Up to {p.max_programmes} Programmes</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5 text-[#d7ff3f]" />
+                            <span>Up to {p.max_participants} Contestants</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5 text-[#d7ff3f]" />
+                            <span>Up to {p.max_judges} Judges</span>
+                          </div>
+                          {p.features?.custom_domain && (
+                            <div className="flex items-center gap-1.5 text-emerald-400">
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>Custom Event Domain</span>
+                            </div>
+                          )}
+                          {p.features?.qr_verification && (
+                            <div className="flex items-center gap-1.5 text-emerald-400">
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>QR Certificate Verification</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-5 mt-4 border-t border-white/5">
+                        {isCurrent ? (
+                          <div className="w-full py-2.5 rounded-xl bg-white/10 text-center text-xs font-bold text-neutral-300 cursor-default">
+                            Current Active Plan
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleUpgradePlan(p.code)}
+                            disabled={subscriptionLoading}
+                            className="w-full py-2.5 rounded-xl bg-[#d7ff3f] text-black font-bold text-xs hover:bg-[#cbf530] transition-colors cursor-pointer shadow-sm"
+                          >
+                            {subscriptionLoading ? "Updating…" : `Switch to ${p.name}`}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* SUPER ADMIN PLATFORM MULTI-TENANT VIEW (Faris Only) */}
+            {user?.isSuperAdmin && (
+              <div className="p-6 rounded-2xl bg-neutral-900 border border-amber-500/30 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-amber-400" />
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Platform Owner Multi-Tenant Administration</h3>
+                      <p className="text-xs text-neutral-400">Omni-access across all college workspaces on Eventra</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
+                    Super Admin View
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-white/10 text-neutral-400">
+                        <th className="pb-2 font-semibold">Organization</th>
+                        <th className="pb-2 font-semibold">Workspace Slug</th>
+                        <th className="pb-2 font-semibold">Plan</th>
+                        <th className="pb-2 font-semibold">Status</th>
+                        <th className="pb-2 font-semibold">Events</th>
+                        <th className="pb-2 font-semibold">Contestants</th>
+                        <th className="pb-2 font-semibold text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {adminOrgList.map((org) => (
+                        <tr key={org.id} className="hover:bg-white/5">
+                          <td className="py-3 font-bold text-white">{org.name}</td>
+                          <td className="py-3 font-mono text-neutral-400">{org.slug}</td>
+                          <td className="py-3 uppercase text-[11px] font-semibold text-[#d7ff3f]">
+                            {org.subscription?.plan_code || "trial"}
+                          </td>
+                          <td className="py-3">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                org.status === "active"
+                                  ? "bg-emerald-500/20 text-emerald-400"
+                                  : "bg-red-500/20 text-red-400"
+                              }`}
+                            >
+                              {org.status}
+                            </span>
+                          </td>
+                          <td className="py-3 text-neutral-300">
+                            {org.usage?.eventsCount || 0} / {org.usage?.eventsMax || 1}
+                          </td>
+                          <td className="py-3 text-neutral-300">
+                            {org.usage?.participantsCount || 0}
+                          </td>
+                          <td className="py-3 text-right space-x-1.5">
+                            <button
+                              onClick={async () => {
+                                await api.updateOrgSubscription(org.id, "pro");
+                                await loadSubscriptionData();
+                              }}
+                              className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-[10px] font-semibold text-white"
+                            >
+                              Set Pro
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await api.updateOrgSubscription(org.id, "enterprise");
+                                await loadSubscriptionData();
+                              }}
+                              className="px-2 py-1 rounded bg-[#d7ff3f]/20 hover:bg-[#d7ff3f]/30 text-[10px] font-semibold text-[#d7ff3f]"
+                            >
+                              Set Enterprise
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -13,6 +13,7 @@ interface NavbarProps {
   onLogout: () => void;
   onOpenVerify: () => void;
   onOpenSearch: () => void;
+  onSwitchOrg?: (orgId: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -26,6 +27,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onOpenVerify,
   onOpenSearch,
+  onSwitchOrg,
 }) => {
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md bg-[#0b0d11]/85 border-b border-white/10 transition-colors">
@@ -134,10 +136,27 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Auth State */}
           {user ? (
             <div className="flex items-center gap-2 pl-2">
+              {user.organizations && user.organizations.length > 1 && onSwitchOrg && (
+                <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs">
+                  <span className="text-[10px] text-neutral-400 font-bold uppercase">Org:</span>
+                  <select
+                    value={user.activeOrgId}
+                    onChange={(e) => onSwitchOrg(e.target.value)}
+                    className="bg-transparent text-white font-medium focus:outline-none cursor-pointer text-xs"
+                  >
+                    {user.organizations.map((org) => (
+                      <option key={org.orgId} value={org.orgId} className="bg-neutral-900 text-white">
+                        {org.orgName} ({org.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="hidden lg:block text-right">
                 <span className="text-xs font-bold text-white block leading-tight">{user.name}</span>
                 <span className="text-[10px] text-[#d7ff3f] uppercase tracking-wider font-semibold">
-                  {user.globalRole}
+                  {user.isSuperAdmin ? "Super Admin" : user.activeRole || user.globalRole || "Member"}
                 </span>
               </div>
               <button

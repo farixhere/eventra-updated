@@ -1,5 +1,77 @@
+export interface OrganizationItem {
+  id: string;
+  name: string;
+  slug: string;
+  owner_user_id: string;
+  logo_url: string;
+  website: string;
+  billing_email: string;
+  status: "active" | "inactive" | "suspended";
+  created_at: string;
+}
+
+export interface OrganizationMemberItem {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  user_name?: string;
+  user_email?: string;
+  role: "owner" | "admin" | "coordinator" | "judge" | "team-mgr" | "member";
+  status: "active" | "invited" | "deactivated";
+  created_at: string;
+}
+
+export interface OrganizationInvitationItem {
+  id: string;
+  organization_id: string;
+  email: string;
+  role: string;
+  token: string;
+  invited_by: string;
+  status: "pending" | "accepted" | "revoked";
+  expires_at: string;
+  created_at: string;
+}
+
+export interface SubscriptionPlanItem {
+  code: string;
+  name: string;
+  description: string;
+  price_monthly: number;
+  price_per_event: number;
+  max_events: number;
+  max_participants: number;
+  max_programmes: number;
+  max_judges: number;
+  features: Record<string, boolean>;
+}
+
+export interface OrganizationSubscriptionItem {
+  id: string;
+  organization_id: string;
+  plan_code: string;
+  status: "trialing" | "active" | "past_due" | "canceled" | "expired";
+  trial_ends_at: string | null;
+  current_period_ends_at: string;
+  payment_provider: string;
+  payment_customer_id?: string;
+  created_at: string;
+}
+
+export interface TenantUsageItem {
+  eventsCount: number;
+  eventsMax: number;
+  programmesCount: number;
+  programmesMax: number;
+  participantsCount: number;
+  participantsMax: number;
+  judgesCount: number;
+  judgesMax: number;
+}
+
 export interface EventItem {
   id: string;
+  organization_id?: string;
   name: string;
   slug: string;
   description: string;
@@ -234,18 +306,32 @@ export interface ContactMessageItem {
   created_at: string;
 }
 
+export interface UserSessionOrg {
+  orgId: string;
+  orgName: string;
+  orgSlug: string;
+  role: "owner" | "admin" | "coordinator" | "judge" | "team-mgr" | "member";
+  planCode: string;
+  subStatus: string;
+}
+
 export interface UserSessionItem {
   id: string;
   email: string;
   name: string;
-  globalRole: string;
-  roles: string[];
+  globalRole?: string;
+  isSuperAdmin: boolean;
+  emailVerified: boolean;
+  organizations: UserSessionOrg[];
+  activeOrgId: string;
+  activeRole: string;
   token: string;
 }
 
 export interface AuditLogItem {
   id: string;
   event_id: string | null;
+  organization_id?: string | null;
   action: string;
   entity_type: string | null;
   entity_id: string | null;
