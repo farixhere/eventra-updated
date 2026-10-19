@@ -9,6 +9,14 @@ Eventra is a web application project for coordinating festivals and multi-part e
   <a href="https://github.com/farixhere/eventra-updated"><img src="https://img.shields.io/badge/Source-GitHub-181717?style=for-the-badge&logo=github" alt="Eventra source on GitHub" /></a>
 </p>
 
+## Live preview
+
+<a href="https://eventra-ruddy.vercel.app/">
+  <img src="https://s.wordpress.com/mshots/v1/https%3A%2F%2Feventra-ruddy.vercel.app%2F?w=1200" alt="Live preview of the Eventra event management app" width="100%" />
+</a>
+
+*Preview captured from the live application. Open it to explore Eventra.*
+
 ## What Eventra is for
 
 Festival organisers often need to coordinate several connected workflows. Eventra brings those workflows into one application instead of scattering them across separate documents and tools.
